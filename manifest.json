@@ -5,5 +5,10 @@
     "minAppVersion": "0.15.0",
     "description": "Makes code blocks collapsible in preview mode as well as enabling scroll-able code blocks.",
     "author": "Bradley Wyatt",
+    "authorUrl": "https://github.com/bwya77",
+    "fundingUrl": {
+		"Buy Me a Coffee": "buymeacoffee.com/bwya77",
+		"GitHub Sponsor":  "https://github.com/sponsors/bwya77"
+  	},
     "isDesktopOnly": true
 }
