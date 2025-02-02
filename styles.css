@@ -1,3 +1,4 @@
+/* styles.css */
 .markdown-preview-view pre {
     position: relative;
     padding-top: 24px;
@@ -10,11 +11,13 @@
     display: block;
     line-height: 1.5em;
     transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow-x: auto;
 }
 
 .markdown-preview-view pre.collapsed code {
     max-height: calc(var(--collapsed-lines, 1) * 1.5em);
     overflow: hidden;
+    overflow-x: hidden;
 }
 
 .code-block-toggle {
@@ -56,4 +59,27 @@ body.horizontal-scroll .markdown-preview-view pre:not(.collapsed) code {
 
 .markdown-preview-view pre code::-webkit-scrollbar:vertical {
     width: 0;
+}
+
+/* New styles for dynamic states */
+.hidden {
+    display: none !important;
+}
+
+.element-hidden {
+    display: none !important;
+}
+
+.element-visible {
+    display: block;
+}
+
+.element-spacing {
+    margin-top: var(--element-spacing);
+}
+
+/* Custom properties for dynamic values */
+:root {
+    --element-spacing: 0px;
+    --collapsed-lines: 1;
 }
