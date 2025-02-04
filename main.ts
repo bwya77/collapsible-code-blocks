@@ -25,22 +25,11 @@ const DEFAULT_SETTINGS: CollapsibleCodeBlockSettings = {
 
 export default class CollapsibleCodeBlockPlugin extends Plugin {
     private contentObserver: MutationObserver;
-    private viewportObserver: IntersectionObserver;
     public settings: CollapsibleCodeBlockSettings;
 
     async onload() {
         await this.loadSettings();
         this.updateScrollSetting();
-
-        // Single viewport observer for all code blocks
-        this.viewportObserver = new IntersectionObserver(
-            (entries) => entries.forEach(entry => {
-                if (entry.isIntersecting && entry.target instanceof HTMLElement) {
-                    this.updateCodeBlockVisibility(entry.target);
-                }
-            }),
-            { rootMargin: "100px", threshold: [0, 0.5, 1.0] }
-        );
 
         // Single content observer for the entire preview
         this.contentObserver = new MutationObserver((mutations) => {
@@ -65,7 +54,6 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
             
             pre.classList.add('has-collapse-button');
             this.setupCodeBlock(pre);
-            this.viewportObserver.observe(pre);
         });
     }
 
@@ -78,7 +66,7 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
         if (this.settings.defaultCollapsed) {
             pre.classList.add('collapsed');
             toggleButton.textContent = this.settings.expandIcon;
-            this.updateCodeBlockVisibility(pre);
+            this.updateCodeBlockVisibility(pre, true);
         }
     }
 
@@ -96,7 +84,7 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
             if (!pre) return;
 
             pre.classList.toggle('collapsed');
-            this.updateCodeBlockVisibility(pre);
+            this.updateCodeBlockVisibility(pre, true);
             
             const isCollapsed = pre.classList.contains('collapsed');
             button.textContent = isCollapsed ? this.settings.expandIcon : this.settings.collapseIcon;
@@ -115,79 +103,93 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
         return button;
     }
 
-    private updateCodeBlockVisibility(pre: HTMLElement) {
-        const isCollapsed = pre.classList.contains('collapsed');
-        
-        // Update following elements' visibility and positioning
-        let elements: HTMLElement[] = [];
-        let curr = pre.nextElementSibling;
-        
-        while (curr && !(curr instanceof HTMLPreElement)) {
-            if (curr instanceof HTMLElement) {
-                elements.push(curr);
-                // Store original display if not already stored
-                if (!curr.dataset.originalDisplay) {
-                    curr.dataset.originalDisplay = getComputedStyle(curr).display;
+    private updateCodeBlockVisibility(pre: HTMLElement, forceRefresh: boolean = false) {
+    const isCollapsed = pre.classList.contains('collapsed');
+    
+    // Update following elements' visibility and positioning
+    let elements: HTMLElement[] = [];
+    let curr = pre.nextElementSibling;
+    
+    while (curr && !(curr instanceof HTMLPreElement)) {
+        if (curr instanceof HTMLElement) {
+            elements.push(curr);
+            if (!curr.dataset.originalDisplay) {
+                curr.dataset.originalDisplay = getComputedStyle(curr).display;
+            }
+        }
+        curr = curr.nextElementSibling;
+    }
+
+    // Only perform the layout refresh if forceRefresh is true
+    const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (markdownView?.previewMode?.containerEl && forceRefresh) {
+        const previewElement = markdownView.previewMode.containerEl;
+
+        // Immediately update visibility classes
+        elements.forEach(el => {
+            if (isCollapsed) {
+                el.classList.add('element-hidden');
+                el.classList.remove('element-visible', 'element-spacing');
+            } else {
+                el.classList.remove('element-hidden');
+                el.classList.add('element-visible');
+                
+                const preRect = pre.getBoundingClientRect();
+                const elRect = el.getBoundingClientRect();
+                if (elRect.top < preRect.bottom) {
+                    document.documentElement.style.setProperty('--element-spacing', `${preRect.bottom - elRect.top + 10}px`);
+                    el.classList.add('element-spacing');
                 }
             }
-            curr = curr.nextElementSibling;
-        }
+        });
 
-        // Force layout recalculation
-        const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (markdownView?.previewMode?.containerEl) {
-            const previewElement = markdownView.previewMode.containerEl;
+        // Force immediate viewport recalculation
+        void previewElement.offsetHeight;
 
-            setTimeout(() => {
-                // Update element visibility
-                elements.forEach(el => {
-                    if (isCollapsed) {
-                        el.classList.add('element-hidden');
-                        el.classList.remove('element-visible', 'element-spacing');
-                    } else {
-                        el.classList.remove('element-hidden');
-                        el.classList.add('element-visible');
-                        
-                        // Check if element needs repositioning
-                        const preRect = pre.getBoundingClientRect();
-                        const elRect = el.getBoundingClientRect();
-                        if (elRect.top < preRect.bottom) {
-                            document.documentElement.style.setProperty('--element-spacing', `${preRect.bottom - elRect.top + 10}px`);
-                            el.classList.add('element-spacing');
-                        }
-                    }
-                });
+        // Get current scroll position and element position
+        const currentScroll = previewElement.scrollTop;
+        const preRect = pre.getBoundingClientRect();
+        const isAtTop = preRect.top <= 100; // Check if code block is near the top
 
-                // Force multiple viewport recalculations
-                void previewElement.offsetHeight;
-                
-                // Trigger scroll events to force Obsidian to update
+        // Optimized scroll sequence
+        const scrollSequence = async () => {
+            // If at top, scroll down first then back up
+            if (isAtTop) {
+                previewElement.scrollTop = Math.min(500, previewElement.scrollHeight / 2);
+                await new Promise(resolve => requestAnimationFrame(resolve));
+                previewElement.scrollTop = 0;
+                await new Promise(resolve => requestAnimationFrame(resolve));
+            }
+
+            // Quick scroll through content
+            const scrollPoints = [0, previewElement.scrollHeight / 2, currentScroll];
+            
+            for (const scrollPos of scrollPoints) {
+                previewElement.scrollTop = scrollPos;
                 previewElement.dispatchEvent(new Event('scroll', { bubbles: true }));
-                window.dispatchEvent(new Event('resize'));
+                await new Promise(resolve => requestAnimationFrame(resolve));
+            }
 
-                // Additional scroll juggling to force refresh
-                const currentScroll = previewElement.scrollTop;
-                if (currentScroll > 0) {
-                    previewElement.scrollTop = currentScroll - 1;
-                    requestAnimationFrame(() => {
-                        previewElement.scrollTop = currentScroll;
-                        // One final scroll event after everything else
-                        setTimeout(() => {
-                            previewElement.dispatchEvent(new Event('scroll', { bubbles: true }));
-                        }, 50);
-                    });
-                } else {
-                    previewElement.scrollTop = 1;
-                    requestAnimationFrame(() => {
-                        previewElement.scrollTop = 0;
-                        setTimeout(() => {
-                            previewElement.dispatchEvent(new Event('scroll', { bubbles: true }));
-                        }, 50);
-                    });
-                }
-            }, 50);
-        }
+            // Final layout adjustments
+            window.dispatchEvent(new Event('resize'));
+            previewElement.dispatchEvent(new Event('scroll', { bubbles: true }));
+        };
+
+        // Execute scroll sequence
+        scrollSequence();
+    } else {
+        // If not forcing refresh, just update the visibility classes
+        elements.forEach(el => {
+            if (isCollapsed) {
+                el.classList.add('element-hidden');
+                el.classList.remove('element-visible', 'element-spacing');
+            } else {
+                el.classList.remove('element-hidden');
+                el.classList.add('element-visible');
+            }
+        });
     }
+}
 
     updateScrollSetting(): void {
         document.body.classList.toggle('horizontal-scroll', this.settings.enableHorizontalScroll);
@@ -218,7 +220,6 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
 
     onunload() {
         this.contentObserver?.disconnect();
-        this.viewportObserver?.disconnect();
     }
 }
 
