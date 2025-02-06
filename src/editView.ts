@@ -3,6 +3,7 @@ import { EditorView, Decoration, DecorationSet, WidgetType } from '@codemirror/v
 import { syntaxTree } from '@codemirror/language';
 import { StateField, StateEffect, EditorState } from '@codemirror/state';
 import { CollapsibleCodeBlockSettings } from './types';
+import { App, MarkdownView } from 'obsidian';
 
 interface CodeBlockPosition {
     startPos: number;
@@ -12,18 +13,35 @@ interface CodeBlockPosition {
 export const toggleFoldEffect = StateEffect.define<{from: number, to: number, defaultState?: boolean}>();
 
 class FoldWidget extends WidgetType {
-    private static initializedBlocks = new Set<string>();
+    private static initializedBlocks = new WeakMap<EditorState, Set<string>>();
     
     constructor(
         readonly startPos: number,
         readonly endPos: number,
         readonly settings: CollapsibleCodeBlockSettings,
-        readonly foldField: StateField<DecorationSet>
+        readonly foldField: StateField<DecorationSet>,
+        readonly app: App
     ) {
         super();
     }
+
+     private getFrontmatterCodeBlockState(): boolean | null {
+    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (!activeView?.file) return null;  // Add ?.file check here
+
+    const cache = this.app.metadataCache.getFileCache(activeView.file);
+    if (!cache?.frontmatter?.['code-blocks']) return null;
+
+    const value = cache.frontmatter['code-blocks'].toLowerCase();
+    if (value === 'collapsed') return true;
+    if (value === 'expanded') return false;
+    return null;
+}
     
     toDOM(view: EditorView) {
+        if (!FoldWidget.initializedBlocks.has(view.state)) {
+            FoldWidget.initializedBlocks.set(view.state, new Set());
+        }
         const button = document.createElement('div');
         button.className = 'code-block-toggle';
         
@@ -36,8 +54,12 @@ class FoldWidget extends WidgetType {
         button.setAttribute('aria-label', isFolded ? 'Expand code block' : 'Collapse code block');
         
         const blockId = `${this.startPos}-${this.endPos}`;
-        if (this.settings.defaultCollapsed && !isFolded && !FoldWidget.initializedBlocks.has(blockId)) {
-            FoldWidget.initializedBlocks.add(blockId);
+        const frontmatterState = this.getFrontmatterCodeBlockState();
+        const shouldCollapse = frontmatterState !== null ? frontmatterState : this.settings.defaultCollapsed;
+        const stateBlocks = FoldWidget.initializedBlocks.get(view.state)!;
+
+        if (shouldCollapse && !stateBlocks.has(blockId)) {
+            stateBlocks.add(blockId);
             requestAnimationFrame(() => {
                 view.dispatch({
                     effects: toggleFoldEffect.of({
@@ -132,17 +154,6 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
     provide: f => EditorView.decorations.from(f)
 });
 
-const decorations = (settings: CollapsibleCodeBlockSettings, foldField: StateField<DecorationSet>) => StateField.define<DecorationSet>({
-    create(state: EditorState): DecorationSet {
-        return buildDecorations(state, settings, foldField);
-    },
-    update(value: DecorationSet, transaction): DecorationSet {
-        return buildDecorations(transaction.state, settings, foldField);
-    },
-    provide(field: StateField<DecorationSet>): Extension {
-        return EditorView.decorations.from(field);
-    }
-});
 
 const codeBlockPositions = StateField.define<CodeBlockPosition[]>({
     create(state: EditorState): CodeBlockPosition[] {
@@ -193,14 +204,15 @@ function findCodeBlockPositions(state: EditorState): CodeBlockPosition[] {
 function buildDecorations(
     state: EditorState, 
     settings: CollapsibleCodeBlockSettings,
-    foldField: StateField<DecorationSet>
+    foldField: StateField<DecorationSet>,
+    app: App
 ): DecorationSet {
     const widgets: any[] = [];
     const positions = state.field(codeBlockPositions);
     
     positions.forEach(pos => {
         const widget = Decoration.widget({
-            widget: new FoldWidget(pos.startPos, pos.endPos, settings, foldField),
+            widget: new FoldWidget(pos.startPos, pos.endPos, settings, foldField, app),
             side: -1
         });
         widgets.push(widget.range(pos.startPos));
@@ -209,9 +221,19 @@ function buildDecorations(
     return Decoration.set(widgets, true);
 }
 
-export function setupEditView(settings: CollapsibleCodeBlockSettings): Extension[] {
+export function setupEditView(settings: CollapsibleCodeBlockSettings, app: App): Extension[] {
     const foldField = createFoldField(settings);
-    const currentDecorations = decorations(settings, foldField);
+    const currentDecorations = StateField.define<DecorationSet>({
+        create(state: EditorState): DecorationSet {
+            return buildDecorations(state, settings, foldField, app);
+        },
+        update(value: DecorationSet, transaction): DecorationSet {
+            return buildDecorations(transaction.state, settings, foldField, app);
+        },
+        provide(field: StateField<DecorationSet>): Extension {
+            return EditorView.decorations.from(field);
+        }
+    });
 
     return [
         codeBlockPositions,

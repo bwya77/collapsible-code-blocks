@@ -10,8 +10,8 @@ Make code blocks collapsible in preview mode with customizable collapse/expand b
 - Customizable collapse/expand icons
 - Optional horizontal scrolling for code blocks
 - Configure number of visible lines when collapsed
-- Keyboard navigation support
 - Default collapse state setting
+- Control if a code block should be expanded or collapsed on a per-note basis by setting code-blocks to `collapsed` or `expanded` in the frontmatter
 - Smooth animations for collapse/expand transitions
 - Maintains proper layout with surrounding content
 
@@ -46,6 +46,23 @@ The plugin offers several customization options:
 - **Collapse/Expand Icons**: Customize the icons shown for collapse/expand states
 - **Horizontal Scrolling**: Toggle horizontal scrolling for code blocks
 - **Collapsed Lines**: Set how many lines remain visible when collapsed
+- **Frontmatter Setting**: Set the frontmatter key to control the default state of code blocks
+
+### Frontmatter Setting
+Set a note to always have code blocks expanded or collapsed by default by adding the following to the note's frontmatter (note: this will override the global default setting):
+
+#### Collapsed
+```yaml
+code-blocks: collapsed
+```
+![Code Collapsed](/images/code_collapsed_frontmatter.png) 
+
+#### Expanded
+
+```yaml
+code-blocks: expanded
+```
+![Code Expanded](/images/code_expanded_frontmatter.png)
 
 ## Examples
 

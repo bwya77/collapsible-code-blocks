@@ -7,6 +7,19 @@ export interface ReadViewAPI {
 }
 
 export function setupReadView(app: ExtendedApp, settings: CollapsibleCodeBlockSettings): ReadViewAPI {
+   function getFrontmatterCodeBlockState(): boolean | null {
+        const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+        if (!activeView?.file) return null;
+
+        const cache = app.metadataCache.getFileCache(activeView.file);
+        if (!cache?.frontmatter?.['code-blocks']) return null;
+
+        const value = cache.frontmatter['code-blocks'].toLowerCase();
+        if (value === 'collapsed') return true;
+        if (value === 'expanded') return false;
+        return null;
+    }
+
     function createToggleButton(): HTMLElement {
         const button = document.createElement('div');
         button.className = 'code-block-toggle';
@@ -84,13 +97,16 @@ export function setupReadView(app: ExtendedApp, settings: CollapsibleCodeBlockSe
         triggerReflow();
     }
 
-    function setupCodeBlock(pre: HTMLElement) {
+     function setupCodeBlock(pre: HTMLElement) {
         document.documentElement.style.setProperty('--collapsed-lines', settings.collapsedLines.toString());
         
         const toggleButton = createToggleButton();
         pre.insertBefore(toggleButton, pre.firstChild);
 
-        if (settings.defaultCollapsed) {
+        const frontmatterState = getFrontmatterCodeBlockState();
+        const shouldCollapse = frontmatterState !== null ? frontmatterState : settings.defaultCollapsed;
+
+        if (shouldCollapse) {
             pre.classList.add('collapsed');
             toggleButton.textContent = settings.expandIcon;
             updateCodeBlockVisibility(pre, true);

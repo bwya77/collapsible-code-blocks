@@ -12,8 +12,8 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
         await this.loadSettings();
         this.updateScrollSetting();
 
-        // Set up editor view
-        const editorExtensions = setupEditView(this.settings);
+        // Set up editor view with app instance
+        const editorExtensions = setupEditView(this.settings, this.app);
         this.registerEditorExtension(editorExtensions);
 
         // Set up reading view
