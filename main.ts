@@ -78,63 +78,7 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
 
 const toggleFoldEffect = StateEffect.define<{from: number, to: number, defaultState?: boolean}>();
 
-class FoldWidget extends WidgetType {
-    private static initializedBlocks = new Set<string>();
-    
-    constructor(
-        readonly startPos: number,
-        readonly endPos: number,
-        readonly settings: CollapsibleCodeBlockSettings,
-        readonly foldField: StateField<DecorationSet>
-    ) {
-        super();
-    }
-    
-    toDOM(view: EditorView) {
-        const button = document.createElement('div');
-        button.className = 'code-block-toggle';
-        
-        let isFolded = false;
-        view.state.field(this.foldField).between(this.startPos, this.endPos, () => {
-            isFolded = true;
-        });
-        
-        button.innerHTML = isFolded ? this.settings.expandIcon : this.settings.collapseIcon;
-        button.setAttribute('aria-label', isFolded ? 'Expand code block' : 'Collapse code block');
-        
-        const blockId = `${this.startPos}-${this.endPos}`;
-        if (this.settings.defaultCollapsed && !isFolded && !FoldWidget.initializedBlocks.has(blockId)) {
-            FoldWidget.initializedBlocks.add(blockId);
-            requestAnimationFrame(() => {
-                view.dispatch({
-                    effects: toggleFoldEffect.of({
-                        from: this.startPos,
-                        to: this.endPos,
-                        defaultState: true
-                    })
-                });
-            });
-        }
-        
-        button.onclick = (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            view.dispatch({
-                effects: toggleFoldEffect.of({
-                    from: this.startPos,
-                    to: this.endPos,
-                    defaultState: false
-                })
-            });
-        };
-        
-        return button;
-    }
 
-    eq(other: FoldWidget) {
-        return other.startPos === this.startPos && other.endPos === this.endPos;
-    }
-}
 
 
 interface CollapsibleCodeBlockSettings {
@@ -158,7 +102,7 @@ const DEFAULT_SETTINGS: CollapsibleCodeBlockSettings = {
     collapsedLines: 0
 };
 
-const toggleFoldEffect = StateEffect.define<{from: number, to: number}>();
+//const toggleFoldEffect = StateEffect.define<{from: number, to: number}>();
 
 
 class FoldWidget extends WidgetType {
