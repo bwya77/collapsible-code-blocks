@@ -12,8 +12,17 @@ interface CodeBlockPosition {
 
 export const toggleFoldEffect = StateEffect.define<{from: number, to: number, defaultState?: boolean}>();
 
-class FoldWidget extends WidgetType {
-    private static initializedBlocks = new WeakMap<EditorState, Set<string>>();
+export class FoldWidget extends WidgetType {
+    private static initializedBlocks = new Set<string>();
+
+    private static getFrontmatterCodeBlockState(app: App): boolean | null {
+        const activeView = app.workspace.getActiveViewOfType(MarkdownView);
+        if (!activeView?.file) return null;
+        const cache = app.metadataCache.getFileCache(activeView.file);
+        if (!cache?.frontmatter?.['code-blocks']) return null;
+        const value = cache.frontmatter['code-blocks'].toLowerCase();
+        return value === 'collapsed' ? true : value === 'expanded' ? false : null;
+    }
     
     constructor(
         readonly startPos: number,
@@ -25,23 +34,42 @@ class FoldWidget extends WidgetType {
         super();
     }
 
-     private getFrontmatterCodeBlockState(): boolean | null {
-    const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!activeView?.file) return null;  // Add ?.file check here
+    private getBlockId(): string {
+        const file = this.app.workspace.getActiveViewOfType(MarkdownView)?.file;
+        return `${file?.path || ''}-${this.startPos}-${this.endPos}`;
+    }
 
-    const cache = this.app.metadataCache.getFileCache(activeView.file);
-    if (!cache?.frontmatter?.['code-blocks']) return null;
+    private initializeCodeBlock(view: EditorView) {
+        const blockId = this.getBlockId();
+        if (FoldWidget.initializedBlocks.has(blockId)) {
+            return;
+        }
 
-    const value = cache.frontmatter['code-blocks'].toLowerCase();
-    if (value === 'collapsed') return true;
-    if (value === 'expanded') return false;
-    return null;
-}
+        FoldWidget.initializedBlocks.add(blockId);
+        const frontmatterState = FoldWidget.getFrontmatterCodeBlockState(this.app);
+        const shouldCollapse = frontmatterState !== null ? frontmatterState : this.settings.defaultCollapsed;
+        
+        if (shouldCollapse) {
+            let isAlreadyFolded = false;
+            view.state.field(this.foldField).between(this.startPos, this.endPos, () => {
+                isAlreadyFolded = true;
+            });
+            
+            if (!isAlreadyFolded) {
+                requestAnimationFrame(() => {
+                    view.dispatch({
+                        effects: toggleFoldEffect.of({
+                            from: this.startPos,
+                            to: this.endPos,
+                            defaultState: true
+                        })
+                    });
+                });
+            }
+        }
+    }
     
     toDOM(view: EditorView) {
-        if (!FoldWidget.initializedBlocks.has(view.state)) {
-            FoldWidget.initializedBlocks.set(view.state, new Set());
-        }
         const button = document.createElement('div');
         button.className = 'code-block-toggle';
         
@@ -50,26 +78,10 @@ class FoldWidget extends WidgetType {
             isFolded = true;
         });
         
+        this.initializeCodeBlock(view);
+        
         button.innerHTML = isFolded ? this.settings.expandIcon : this.settings.collapseIcon;
         button.setAttribute('aria-label', isFolded ? 'Expand code block' : 'Collapse code block');
-        
-        const blockId = `${this.startPos}-${this.endPos}`;
-        const frontmatterState = this.getFrontmatterCodeBlockState();
-        const shouldCollapse = frontmatterState !== null ? frontmatterState : this.settings.defaultCollapsed;
-        const stateBlocks = FoldWidget.initializedBlocks.get(view.state)!;
-
-        if (shouldCollapse && !stateBlocks.has(blockId)) {
-            stateBlocks.add(blockId);
-            requestAnimationFrame(() => {
-                view.dispatch({
-                    effects: toggleFoldEffect.of({
-                        from: this.startPos,
-                        to: this.endPos,
-                        defaultState: true
-                    })
-                });
-            });
-        }
         
         button.onclick = (e) => {
             e.preventDefault();
@@ -77,7 +89,8 @@ class FoldWidget extends WidgetType {
             view.dispatch({
                 effects: toggleFoldEffect.of({
                     from: this.startPos,
-                    to: this.endPos
+                    to: this.endPos,
+                    defaultState: isFolded ? false : true
                 })
             });
         };
@@ -85,8 +98,9 @@ class FoldWidget extends WidgetType {
         return button;
     }
 
-    eq(other: FoldWidget) {
-        return other.startPos === this.startPos && other.endPos === this.endPos;
+    // Add method to clear initialization state when switching files
+    public static clearInitializedBlocks() {
+        FoldWidget.initializedBlocks.clear();
     }
 }
 
@@ -104,11 +118,14 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
                 
                 folds.between(from, to, () => { hasFold = true });
                 
-                if ((hasFold && !defaultState) || (defaultState === false)) {
+                if (defaultState === false) {
                     folds = folds.update({
                         filter: (fromPos, toPos) => fromPos !== from || toPos !== to
                     });
                 } else {
+                    const capturedFrom = from;
+                    const capturedTo = to;
+                    
                     const deco = Decoration.replace({
                         block: true,
                         inclusive: true,
@@ -120,7 +137,7 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
                                 
                                 const contentDiv = document.createElement('div');
                                 contentDiv.className = 'folded-content';
-                                const lines = view.state.doc.sliceString(from, to).split('\n')
+                                const lines = view.state.doc.sliceString(capturedFrom, capturedTo).split('\n')
                                                 .slice(0, settings.collapsedLines)
                                                 .join('\n');
                                 contentDiv.textContent = lines;
@@ -132,7 +149,11 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
                                     e.preventDefault();
                                     e.stopPropagation();
                                     view.dispatch({
-                                        effects: toggleFoldEffect.of({from, to, defaultState: false})
+                                        effects: toggleFoldEffect.of({
+                                            from: capturedFrom,
+                                            to: capturedTo,
+                                            defaultState: false
+                                        })
                                     });
                                 };
                                 
@@ -153,7 +174,6 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
     },
     provide: f => EditorView.decorations.from(f)
 });
-
 
 const codeBlockPositions = StateField.define<CodeBlockPosition[]>({
     create(state: EditorState): CodeBlockPosition[] {
@@ -205,14 +225,14 @@ function buildDecorations(
     state: EditorState, 
     settings: CollapsibleCodeBlockSettings,
     foldField: StateField<DecorationSet>,
-    app: App
+    app: App  // Add app parameter
 ): DecorationSet {
     const widgets: any[] = [];
     const positions = state.field(codeBlockPositions);
     
     positions.forEach(pos => {
         const widget = Decoration.widget({
-            widget: new FoldWidget(pos.startPos, pos.endPos, settings, foldField, app),
+            widget: new FoldWidget(pos.startPos, pos.endPos, settings, foldField, app), // Pass app as the fifth argument
             side: -1
         });
         widgets.push(widget.range(pos.startPos));
@@ -220,6 +240,7 @@ function buildDecorations(
     
     return Decoration.set(widgets, true);
 }
+
 
 export function setupEditView(settings: CollapsibleCodeBlockSettings, app: App): Extension[] {
     const foldField = createFoldField(settings);

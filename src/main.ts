@@ -1,6 +1,6 @@
 import { Plugin, App, PluginSettingTab, Setting, ButtonComponent } from 'obsidian';
 import { CollapsibleCodeBlockSettings, DEFAULT_SETTINGS, ExtendedApp } from './types';
-import { setupEditView } from './editView';
+import { setupEditView, FoldWidget } from './editView';
 import { setupReadView, type ReadViewAPI } from './readView';
 
 export default class CollapsibleCodeBlockPlugin extends Plugin {
@@ -11,10 +11,14 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
     async onload() {
         await this.loadSettings();
         this.updateScrollSetting();
-
         // Set up editor view with app instance
         const editorExtensions = setupEditView(this.settings, this.app);
         this.registerEditorExtension(editorExtensions);
+        this.registerEvent(
+    this.app.workspace.on('file-open', () => {
+        FoldWidget.clearInitializedBlocks();
+    })
+);
 
         // Set up reading view
         this.readViewAPI = setupReadView(this.app as ExtendedApp, this.settings);
