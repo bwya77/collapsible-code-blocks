@@ -22,25 +22,26 @@
 
 .code-block-toggle {
     position: absolute;
-    left: 4px;
-    top: 4px;
-    width: 24px;
-    height: 24px;
+    top: 0;
+    left: 0;
+    padding: 2px 8px;
+    cursor: pointer;
+    color: var(--text-muted);
+    z-index: 1;
+    user-select: none;
+    background: transparent;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--text-muted);
-    cursor: pointer;
-    z-index: 2;
-    background: transparent;
-    border-radius: 4px;
-    user-select: none;
-    font-size: 16px;
+    width: 24px;
+    height: 24px;
+    transition: all 0.15s ease;
+    outline: none;
 }
 
 .code-block-toggle:hover {
     color: var(--text-normal);
-    background: var(--background-modifier-hover);
+    opacity: 1;
 }
 
 .code-block-toggle:focus-visible {
@@ -81,32 +82,4 @@ body.horizontal-scroll .markdown-preview-view pre:not(.collapsed) code {
 :root {
     --element-spacing: 0px;
     --collapsed-lines: 1;
-}
-
-.code-block-folded {
-    min-height: 3em;
-    padding: 1.5em 1em 1em 48px;
-    background: var(--code-background);
-    border-radius: 4px;
-    color: var(--text-muted);
-    font-family: var(--font-monospace);
-    font-size: var(--code-size);
-    line-height: var(--line-height-tight);
-    position: relative;
-}
-
-.HyperMD-codeblock {
-    position: relative;
-    padding-left: 32px;
-}
-
-.code-block-folded .folded-content {
-    max-height: calc(var(--collapsed-lines, 1) * 1.5em);
-    overflow: hidden;
-    white-space: pre;
-}
-
-.code-block-folded .code-block-toggle {
-    top: 4px;
-    left: 4px;
 }

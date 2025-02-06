@@ -4,8 +4,13 @@ import {
     PluginSettingTab,
     App,
     Setting,
-    ButtonComponent
+    ButtonComponent,
+    Editor,
+    EditorPosition
 } from 'obsidian';
+import { StateField, StateEffect, Extension, EditorState, Transaction } from '@codemirror/state';
+import { EditorView, Decoration, DecorationSet, WidgetType } from '@codemirror/view';
+import { syntaxTree } from '@codemirror/language';
 
 interface CollapsibleCodeBlockSettings {
     defaultCollapsed: boolean;
@@ -13,6 +18,11 @@ interface CollapsibleCodeBlockSettings {
     expandIcon: string;
     enableHorizontalScroll: boolean;
     collapsedLines: number;
+}
+
+interface CodeBlockPosition {
+    startPos: number;
+    endPos: number;
 }
 
 const DEFAULT_SETTINGS: CollapsibleCodeBlockSettings = {
@@ -23,6 +33,189 @@ const DEFAULT_SETTINGS: CollapsibleCodeBlockSettings = {
     collapsedLines: 0
 };
 
+const toggleFoldEffect = StateEffect.define<{from: number, to: number}>();
+
+function configureFoldField(settings: CollapsibleCodeBlockSettings) {
+    return StateField.define<DecorationSet>({
+        create() {
+            return Decoration.none
+        },
+        update(folds: DecorationSet, tr: Transaction) {
+            folds = folds.map(tr.changes)
+            
+            for (let effect of tr.effects) {
+                if (effect.is(toggleFoldEffect)) {
+                    const { from, to } = effect.value
+                    let hasFold = false
+                    
+                    folds.between(from, to, () => { hasFold = true })
+                    
+                    if (hasFold) {
+                        folds = folds.update({
+                            filter: (from, to) => from !== effect.value.from || to !== effect.value.to
+                        })
+                    } else {
+                        const deco = Decoration.replace({
+                            block: true,
+                            inclusive: true,
+                            widget: new class extends WidgetType {
+                                toDOM(view: EditorView) {
+                                    const container = document.createElement('div')
+                                    container.className = 'code-block-folded'
+                                    container.style.setProperty('--collapsed-lines', settings.collapsedLines.toString())
+                                    
+                                    const contentDiv = document.createElement('div')
+                                    contentDiv.className = 'folded-content'
+                                    const lines = view.state.doc.sliceString(from, to).split('\n')
+                                                    .slice(0, settings.collapsedLines)
+                                                    .join('\n')
+                                    contentDiv.textContent = lines
+                                    
+                                    const button = document.createElement('div')
+                                    button.className = 'code-block-toggle'
+                                    button.textContent = settings.expandIcon
+                                    button.onclick = (e) => {
+                                        e.preventDefault()
+                                        view.dispatch({
+                                            effects: toggleFoldEffect.of({from, to})
+                                        })
+                                    }
+                                    
+                                    container.appendChild(button)
+                                    container.appendChild(contentDiv)
+                                    return container
+                                }
+                            }
+                        })
+                        
+                        folds = folds.update({
+                            add: [deco.range(from, to)]
+                        })
+                    }
+                }
+            }
+            return folds
+        },
+        provide: f => EditorView.decorations.from(f)
+    })
+}
+
+const foldField = configureFoldField(DEFAULT_SETTINGS);
+
+class FoldWidget extends WidgetType {
+    constructor(readonly startPos: number, readonly endPos: number) {
+        super();
+    }
+    
+    toDOM(view: EditorView) {
+        const button = document.createElement('div');
+        button.className = 'code-block-toggle';
+        
+        let isFolded = false;
+try {
+   const field = view.state.field(foldField as StateField<DecorationSet>);
+   field.between(this.startPos, this.endPos, () => {
+       isFolded = true;
+   });
+} catch (e) {
+   console.log("Field not found:", e);
+}
+        
+        button.innerHTML = isFolded ? '▶' : '▼';
+        button.setAttribute('aria-label', isFolded ? 'Expand code block' : 'Collapse code block');
+        
+        button.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            view.dispatch({
+                effects: toggleFoldEffect.of({
+                    from: this.startPos,
+                    to: this.endPos
+                })
+            });
+        };
+        
+        return button;
+    }
+
+    eq(other: FoldWidget) {
+        return other.startPos === this.startPos && other.endPos === this.endPos;
+    }
+}
+
+const codeBlockPositions = StateField.define<CodeBlockPosition[]>({
+    create(state: EditorState): CodeBlockPosition[] {
+        return findCodeBlockPositions(state);
+    },
+    update(value: CodeBlockPosition[], tr) {
+        return findCodeBlockPositions(tr.state);
+    }
+});
+
+function buildDecorations(state: EditorState): DecorationSet {
+    const widgets: any[] = [];
+    const positions = state.field(codeBlockPositions);
+    
+    positions.forEach(pos => {
+        const widget = Decoration.widget({
+            widget: new FoldWidget(pos.startPos, pos.endPos),
+            side: -1
+        });
+        widgets.push(widget.range(pos.startPos));
+    });
+    
+    return Decoration.set(widgets, true);
+}
+
+function findCodeBlockPositions(state: EditorState): CodeBlockPosition[] {
+    const positions: CodeBlockPosition[] = [];
+    
+    syntaxTree(state).iterate({
+        enter: (node) => {
+            const nodeName = node.type.name;
+            if (nodeName.includes("HyperMD-codeblock-begin")) {
+                const line = state.doc.lineAt(node.from);
+                if (line.text.trim().startsWith('```')) {
+                    let endFound = false;
+                    
+                    for (let i = line.number; i <= state.doc.lines; i++) {
+                        const currentLine = state.doc.line(i);
+                        if (i !== line.number && currentLine.text.trim().startsWith('```')) {
+                            positions.push({
+                                startPos: line.from,
+                                endPos: currentLine.to
+                            });
+                            endFound = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!endFound) {
+                        positions.push({
+                            startPos: line.from,
+                            endPos: state.doc.line(state.doc.lines).to
+                        });
+                    }
+                }
+            }
+        }
+    });
+    
+    return positions;
+}
+
+const decorations = StateField.define<DecorationSet>({
+    create(state: EditorState): DecorationSet {
+        return buildDecorations(state);
+    },
+    update(value: DecorationSet, transaction): DecorationSet {
+        return buildDecorations(transaction.state);
+    },
+    provide(field: StateField<DecorationSet>): Extension {
+        return EditorView.decorations.from(field);
+    }
+});
+
 export default class CollapsibleCodeBlockPlugin extends Plugin {
     private contentObserver: MutationObserver;
     public settings: CollapsibleCodeBlockSettings;
@@ -31,7 +224,12 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
         await this.loadSettings();
         this.updateScrollSetting();
 
-        // Single content observer for the entire preview
+        this.registerEditorExtension([
+            codeBlockPositions,
+            decorations,
+            configureFoldField(this.settings)
+        ]);
+
         this.contentObserver = new MutationObserver((mutations) => {
             mutations.forEach(mutation => {
                 if (mutation.type === 'childList') {
@@ -104,92 +302,48 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
     }
 
     private updateCodeBlockVisibility(pre: HTMLElement, forceRefresh: boolean = false) {
-    const isCollapsed = pre.classList.contains('collapsed');
-    
-    // Update following elements' visibility and positioning
-    let elements: HTMLElement[] = [];
-    let curr = pre.nextElementSibling;
-    
-    while (curr && !(curr instanceof HTMLPreElement)) {
-        if (curr instanceof HTMLElement) {
-            elements.push(curr);
-            if (!curr.dataset.originalDisplay) {
-                curr.dataset.originalDisplay = getComputedStyle(curr).display;
-            }
-        }
-        curr = curr.nextElementSibling;
-    }
+        const isCollapsed = pre.classList.contains('collapsed');
+        const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!markdownView?.previewMode?.containerEl) return;
 
-    // Only perform the layout refresh if forceRefresh is true
-    const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (markdownView?.previewMode?.containerEl && forceRefresh) {
         const previewElement = markdownView.previewMode.containerEl;
+        const rect = pre.getBoundingClientRect();
+        const scrollTop = previewElement.scrollTop;
+        const elementTop = rect.top + scrollTop;
 
-        // Immediately update visibility classes
-        elements.forEach(el => {
-            if (isCollapsed) {
-                el.classList.add('element-hidden');
-                el.classList.remove('element-visible', 'element-spacing');
-            } else {
-                el.classList.remove('element-hidden');
-                el.classList.add('element-visible');
-                
-                const preRect = pre.getBoundingClientRect();
-                const elRect = el.getBoundingClientRect();
-                if (elRect.top < preRect.bottom) {
-                    document.documentElement.style.setProperty('--element-spacing', `${preRect.bottom - elRect.top + 10}px`);
-                    el.classList.add('element-spacing');
+        let curr = pre.nextElementSibling;
+        while (curr && !(curr instanceof HTMLPreElement)) {
+            if (curr instanceof HTMLElement) {
+                if (isCollapsed) {
+                    curr.classList.add('element-hidden');
+                    curr.classList.remove('element-visible', 'element-spacing');
+                } else {
+                    curr.classList.remove('element-hidden');
+                    curr.classList.add('element-visible');
                 }
             }
-        });
+            curr = curr.nextElementSibling;
+        }
 
-        // Force immediate viewport recalculation
-        void previewElement.offsetHeight;
+        void pre.offsetHeight;
 
-        // Get current scroll position and element position
-        const currentScroll = previewElement.scrollTop;
-        const preRect = pre.getBoundingClientRect();
-        const isAtTop = preRect.top <= 100; // Check if code block is near the top
-
-        // Optimized scroll sequence
-        const scrollSequence = async () => {
-            // If at top, scroll down first then back up
-            if (isAtTop) {
-                previewElement.scrollTop = Math.min(500, previewElement.scrollHeight / 2);
-                await new Promise(resolve => requestAnimationFrame(resolve));
-                previewElement.scrollTop = 0;
-                await new Promise(resolve => requestAnimationFrame(resolve));
-            }
-
-            // Quick scroll through content
-            const scrollPoints = [0, previewElement.scrollHeight / 2, currentScroll];
-            
-            for (const scrollPos of scrollPoints) {
-                previewElement.scrollTop = scrollPos;
-                previewElement.dispatchEvent(new Event('scroll', { bubbles: true }));
-                await new Promise(resolve => requestAnimationFrame(resolve));
-            }
-
-            // Final layout adjustments
+        const triggerReflow = async () => {
             window.dispatchEvent(new Event('resize'));
-            previewElement.dispatchEvent(new Event('scroll', { bubbles: true }));
+            await new Promise(resolve => requestAnimationFrame(resolve));
+
+            const originalScroll = previewElement.scrollTop;
+            previewElement.scrollTop = Math.max(0, previewElement.scrollHeight - previewElement.clientHeight);
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            
+            previewElement.scrollTop = originalScroll;
+            
+            window.dispatchEvent(new Event('resize'));
+            await new Promise(resolve => setTimeout(resolve, 50));
+            window.dispatchEvent(new Event('resize'));
         };
 
-        // Execute scroll sequence
-        scrollSequence();
-    } else {
-        // If not forcing refresh, just update the visibility classes
-        elements.forEach(el => {
-            if (isCollapsed) {
-                el.classList.add('element-hidden');
-                el.classList.remove('element-visible', 'element-spacing');
-            } else {
-                el.classList.remove('element-hidden');
-                el.classList.add('element-visible');
-            }
-        });
+        triggerReflow();
     }
-}
 
     updateScrollSetting(): void {
         document.body.classList.toggle('horizontal-scroll', this.settings.enableHorizontalScroll);
@@ -205,14 +359,12 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
         this.settings = {
             ...DEFAULT_SETTINGS,
             ...loadedData,
-            // Sanitize icons when loading
             collapseIcon: this.sanitizeIcon(loadedData?.collapseIcon ?? DEFAULT_SETTINGS.collapseIcon),
             expandIcon: this.sanitizeIcon(loadedData?.expandIcon ?? DEFAULT_SETTINGS.expandIcon)
         };
     }
 
     async saveSettings() {
-        // Sanitize before saving
         this.settings.collapseIcon = this.sanitizeIcon(this.settings.collapseIcon);
         this.settings.expandIcon = this.sanitizeIcon(this.settings.expandIcon);
         await this.saveData(this.settings);
