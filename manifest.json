@@ -1,7 +1,7 @@
 {
     "id": "collapsible-code-blocks",
     "name": "Collapsible Code Blocks",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "minAppVersion": "0.15.0",
     "description": "Makes code blocks collapsible in reader view and edit view as well as enabling scroll-able code blocks.",
     "author": "Bradley Wyatt",
