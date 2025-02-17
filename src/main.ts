@@ -73,116 +73,114 @@ class CollapsibleCodeBlockSettingTab extends PluginSettingTab {
     }
 
     display(): void {
-        const { containerEl } = this;
-        containerEl.empty();
+    const { containerEl } = this;
+    containerEl.empty();
 
-        containerEl.createEl('h2', { text: 'Collapsible Code Block Settings' });
+    new Setting(containerEl)
+        .setName('Default collapsed state')
+        .setDesc('Should code blocks be collapsed by default?')
+        .addToggle(toggle => toggle
+            .setValue(this.plugin.settings.defaultCollapsed)
+            .onChange(async (value) => {
+                this.plugin.settings.defaultCollapsed = value;
+                await this.plugin.saveSettings();
+            }));
 
-        new Setting(containerEl)
-            .setName('Default Collapsed State')
-            .setDesc('Should code blocks be collapsed by default?')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.defaultCollapsed)
-                .onChange(async (value) => {
-                    this.plugin.settings.defaultCollapsed = value;
+    new Setting(containerEl)
+        .setName('Collapse icon')
+        .setDesc('Icon to show when code block is expanded (single character or emoji only)')
+        .addText(text => text
+            .setValue(this.plugin.settings.collapseIcon)
+            .onChange(async (value) => {
+                const sanitized = value.trim();
+                if (sanitized.length <= 2) {
+                    this.plugin.settings.collapseIcon = sanitized || DEFAULT_SETTINGS.collapseIcon;
                     await this.plugin.saveSettings();
-                }));
+                }
+            }));
 
-        new Setting(containerEl)
-            .setName('Collapse Icon')
-            .setDesc('Icon to show when code block is expanded (single character or emoji only)')
-            .addText(text => text
-                .setValue(this.plugin.settings.collapseIcon)
-                .onChange(async (value) => {
-                    const sanitized = value.trim();
-                    if (sanitized.length <= 2) {
-                        this.plugin.settings.collapseIcon = sanitized || DEFAULT_SETTINGS.collapseIcon;
-                        await this.plugin.saveSettings();
-                    }
-                }));
-
-        new Setting(containerEl)
-            .setName('Expand Icon')
-            .setDesc('Icon to show when code block is collapsed (single character or emoji only)')
-            .addText(text => text
-                .setValue(this.plugin.settings.expandIcon)
-                .onChange(async (value) => {
-                    const sanitized = value.trim();
-                    if (sanitized.length <= 2) {
-                        this.plugin.settings.expandIcon = sanitized || DEFAULT_SETTINGS.expandIcon;
-                        await this.plugin.saveSettings();
-                    }
-                }));
-
-        new Setting(containerEl)
-            .setName('Enable Horizontal Scrolling')
-            .setDesc('Allow code blocks to scroll horizontally instead of wrapping text.')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.enableHorizontalScroll)
-                .onChange(async (value) => {
-                    this.plugin.settings.enableHorizontalScroll = value;
+    new Setting(containerEl)
+        .setName('Expand icon')
+        .setDesc('Icon to show when code block is collapsed (single character or emoji only)')
+        .addText(text => text
+            .setValue(this.plugin.settings.expandIcon)
+            .onChange(async (value) => {
+                const sanitized = value.trim();
+                if (sanitized.length <= 2) {
+                    this.plugin.settings.expandIcon = sanitized || DEFAULT_SETTINGS.expandIcon;
                     await this.plugin.saveSettings();
-                    this.plugin.updateScrollSetting();
-                }));
+                }
+            }));
 
-        const collapsedLinesSetting = new Setting(containerEl)
-            .setName('Collapsed Lines')
-            .setDesc('Number of lines visible when code block is collapsed');
+    new Setting(containerEl)
+        .setName('Enable horizontal scrolling')
+        .setDesc('Allow code blocks to scroll horizontally instead of wrapping text.')
+        .addToggle(toggle => toggle
+            .setValue(this.plugin.settings.enableHorizontalScroll)
+            .onChange(async (value) => {
+                this.plugin.settings.enableHorizontalScroll = value;
+                await this.plugin.saveSettings();
+                this.plugin.updateScrollSetting();
+            }));
 
-        let reloadButton: ButtonComponent | null = null;
+    const collapsedLinesSetting = new Setting(containerEl)
+        .setName('Collapsed lines')
+        .setDesc('Number of lines visible when code block is collapsed');
 
-        collapsedLinesSetting.addButton(btn => {
-    reloadButton = btn
-        .setButtonText('Apply changes (reload plugin)')
-        .setCta();
-    
-    reloadButton.buttonEl.classList.add('hidden');
+    let reloadButton: ButtonComponent | null = null;
 
-    reloadButton.onClick(async () => {
-    const pluginId = this.plugin.manifest.id;
-    try {
-        // Try the new API method names first
-        // @ts-ignore
-        await this.app.plugins.disablePlugin(pluginId);
-        // @ts-ignore
-        await this.app.plugins.enablePlugin(pluginId);
+    collapsedLinesSetting.addButton(btn => {
+        reloadButton = btn
+            .setButtonText('Apply changes (reload plugin)')
+            .setCta();
         
-        // Re-open the settings tab
-        // @ts-ignore
-        this.app.setting.openTabById(pluginId);
-    } catch (error) {
-        console.error('Error reloading plugin:', error);
-        // Fallback to alternative API if needed
-        try {
-            const plugins = (this.app as any).plugins;
-            if (typeof plugins.disable === 'function') {
-                await plugins.disable(pluginId);
-                await plugins.enable(pluginId);
+        reloadButton.buttonEl.classList.add('hidden');
+
+        reloadButton.onClick(async () => {
+            const pluginId = this.plugin.manifest.id;
+            try {
+                // Try the new API method names first
+                // @ts-ignore
+                await this.app.plugins.disablePlugin(pluginId);
+                // @ts-ignore
+                await this.app.plugins.enablePlugin(pluginId);
+                
                 // Re-open the settings tab
                 // @ts-ignore
                 this.app.setting.openTabById(pluginId);
-            } else {
-                console.error('Unable to reload plugin: API methods not found');
-            }
-        } catch (fallbackError) {
-            console.error('Error in fallback:', fallbackError);
-        }
-    }
-});
-});
-
-        collapsedLinesSetting.addText(text => {
-            text
-                .setValue(this.plugin.settings.collapsedLines.toString())
-                .onChange(async (value) => {
-                    const numericValue = parseInt(value, 10);
-                    this.plugin.settings.collapsedLines = isNaN(numericValue) || numericValue < 0 ? 0 : numericValue;
-                    await this.plugin.saveSettings();
-
-                    if (reloadButton) {
-                        reloadButton.buttonEl.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error reloading plugin:', error);
+                // Fallback to alternative API if needed
+                try {
+                    const plugins = (this.app as any).plugins;
+                    if (typeof plugins.disable === 'function') {
+                        await plugins.disable(pluginId);
+                        await plugins.enable(pluginId);
+                        // Re-open the settings tab
+                        // @ts-ignore
+                        this.app.setting.openTabById(pluginId);
+                    } else {
+                        console.error('Unable to reload plugin: API methods not found');
                     }
-                });
+                } catch (fallbackError) {
+                    console.error('Error in fallback:', fallbackError);
+                }
+            }
         });
+    });
+
+    collapsedLinesSetting.addText(text => {
+        text
+            .setValue(this.plugin.settings.collapsedLines.toString())
+            .onChange(async (value) => {
+                const numericValue = parseInt(value, 10);
+                this.plugin.settings.collapsedLines = isNaN(numericValue) || numericValue < 0 ? 0 : numericValue;
+                await this.plugin.saveSettings();
+
+                if (reloadButton) {
+                    reloadButton.buttonEl.classList.remove('hidden');
+                }
+            });
+    });
     }
 }
