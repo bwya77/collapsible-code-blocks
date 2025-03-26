@@ -117,7 +117,14 @@ export function setupReadView(app: ExtendedApp, settings: CollapsibleCodeBlockSe
         element.querySelectorAll('pre:not(.has-collapse-button)').forEach(pre => {
             if (!(pre instanceof HTMLElement)) return;
             
-            pre.classList.add('has-collapse-button');
+            pre.classList.add('has-collapse-button', 'ccb-code-block');
+            
+            // Add our class to the code element to target styling
+            const codeElement = pre.querySelector('code');
+            if (codeElement) {
+                codeElement.classList.add('ccb-hide-vertical-scrollbar');
+            }
+            
             setupCodeBlock(pre);
         });
     }

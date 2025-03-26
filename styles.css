@@ -1,5 +1,5 @@
 /* styles.css */
-.markdown-preview-view pre {
+.markdown-preview-view pre.ccb-code-block {
     position: relative;
     padding-top: 24px;
     user-select: text;
@@ -7,14 +7,14 @@
     overflow: hidden;
 }
 
-.markdown-preview-view pre code {
+.markdown-preview-view pre.ccb-code-block code {
     display: block;
     line-height: 1.5em;
     transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     overflow-x: auto;
 }
 
-.markdown-preview-view pre.collapsed code {
+.markdown-preview-view pre.ccb-code-block.collapsed code {
     max-height: calc(var(--collapsed-lines, 1) * 1.5em);
     overflow: hidden;
     overflow-x: hidden;
@@ -52,11 +52,11 @@
     background: transparent;
 }
 
-body.horizontal-scroll .markdown-preview-view pre:not(.collapsed) code {
+body[data-ccb-horizontal-scroll="true"] .markdown-preview-view pre.ccb-code-block:not(.collapsed) code {
     white-space: pre;
 }
 
-.markdown-preview-view pre code::-webkit-scrollbar:vertical {
+.ccb-hide-vertical-scrollbar::-webkit-scrollbar:vertical {
     width: 0;
 }
 
@@ -95,7 +95,7 @@ body.horizontal-scroll .markdown-preview-view pre:not(.collapsed) code {
     position: relative;
 }
 
-.HyperMD-codeblock {
+.ccb-editor-codeblock {
     position: relative;
     padding-left: 32px;
 }

@@ -11,6 +11,8 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
     async onload() {
         await this.loadSettings();
         this.updateScrollSetting();
+        // Initialize CSS variables
+        document.documentElement.style.setProperty('--collapsed-lines', this.settings.collapsedLines.toString());
         // Set up editor view with app instance
         const editorExtensions = setupEditView(this.settings, this.app);
         this.registerEditorExtension(editorExtensions);
@@ -33,12 +35,20 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
     }
 
     updateScrollSetting(): void {
-        document.body.classList.toggle('horizontal-scroll', this.settings.enableHorizontalScroll);
+        document.body.setAttribute('data-ccb-horizontal-scroll', this.settings.enableHorizontalScroll.toString());
     }
 
     private sanitizeIcon(icon: string): string {
         const cleaned = icon.trim();
-        return cleaned.length <= 2 ? cleaned : DEFAULT_SETTINGS.collapseIcon;
+        if (cleaned.length <= 2) {
+            return cleaned;
+        } else {
+            // Check if it's a valid Obsidian icon name
+            if (this.app.customIcons && this.app.customIcons.exists(cleaned)) {
+                return cleaned;
+            }
+            return DEFAULT_SETTINGS.collapseIcon;
+        }
     }
 
     async loadSettings() {
@@ -59,6 +69,7 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
 
     onunload() {
         this.contentObserver?.disconnect();
+        document.body.removeAttribute('data-ccb-horizontal-scroll');
     }
 }
 
@@ -127,47 +138,7 @@ class CollapsibleCodeBlockSettingTab extends PluginSettingTab {
         .setName('Collapsed lines')
         .setDesc('Number of lines visible when code block is collapsed');
 
-    let reloadButton: ButtonComponent | null = null;
-
-    collapsedLinesSetting.addButton(btn => {
-        reloadButton = btn
-            .setButtonText('Apply changes (reload plugin)')
-            .setCta();
-        
-        reloadButton.buttonEl.classList.add('hidden');
-
-        reloadButton.onClick(async () => {
-            const pluginId = this.plugin.manifest.id;
-            try {
-                // Try the new API method names first
-                // @ts-ignore
-                await this.app.plugins.disablePlugin(pluginId);
-                // @ts-ignore
-                await this.app.plugins.enablePlugin(pluginId);
-                
-                // Re-open the settings tab
-                // @ts-ignore
-                this.app.setting.openTabById(pluginId);
-            } catch (error) {
-                console.error('Error reloading plugin:', error);
-                // Fallback to alternative API if needed
-                try {
-                    const plugins = (this.app as any).plugins;
-                    if (typeof plugins.disable === 'function') {
-                        await plugins.disable(pluginId);
-                        await plugins.enable(pluginId);
-                        // Re-open the settings tab
-                        // @ts-ignore
-                        this.app.setting.openTabById(pluginId);
-                    } else {
-                        console.error('Unable to reload plugin: API methods not found');
-                    }
-                } catch (fallbackError) {
-                    console.error('Error in fallback:', fallbackError);
-                }
-            }
-        });
-    });
+    // No reload button needed as settings will apply automatically
 
     collapsedLinesSetting.addText(text => {
         text
@@ -176,10 +147,9 @@ class CollapsibleCodeBlockSettingTab extends PluginSettingTab {
                 const numericValue = parseInt(value, 10);
                 this.plugin.settings.collapsedLines = isNaN(numericValue) || numericValue < 0 ? 0 : numericValue;
                 await this.plugin.saveSettings();
-
-                if (reloadButton) {
-                    reloadButton.buttonEl.classList.remove('hidden');
-                }
+                
+                // Apply settings immediately
+                document.documentElement.style.setProperty('--collapsed-lines', this.plugin.settings.collapsedLines.toString());
             });
     });
     }

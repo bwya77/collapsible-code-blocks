@@ -191,6 +191,11 @@ function findCodeBlockPositions(state: EditorState): CodeBlockPosition[] {
         enter: (node) => {
             const nodeName = node.type.name;
             if (nodeName.includes("HyperMD-codeblock-begin")) {
+                // Add our custom class to code blocks in editor
+                const lineEl = document.querySelector(`.${nodeName}`);
+                if (lineEl && lineEl.parentElement) {
+                    lineEl.parentElement.classList.add('ccb-editor-codeblock');
+                }
                 const line = state.doc.lineAt(node.from);
                 if (line.text.trim().startsWith('```')) {
                     let endFound = false;
