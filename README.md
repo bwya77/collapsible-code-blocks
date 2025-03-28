@@ -2,9 +2,12 @@
 
 Make code blocks collapsible in preview mode with customizable collapse/expand behavior and horizontal scrolling options. This plugin enhances the readability of your notes by allowing you to collapse long code blocks when you don't need to see their full content.
 
-![Code Collapsed](/images/code_collapsed.png) 
+![Demo](/images/demo.gif) 
+
 
 ## Features
+
+![Code Collapsed](/images/code_collapsed.png) 
 
 - Toggle code blocks between collapsed and expanded states
 - Customizable collapse/expand icons
