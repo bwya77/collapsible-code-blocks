@@ -1,6 +1,6 @@
-import { Plugin, App, PluginSettingTab, Setting, ButtonComponent } from 'obsidian';
+import { Plugin, App, PluginSettingTab, Setting, ButtonComponent, Editor, MarkdownView as MView } from 'obsidian';
 import { CollapsibleCodeBlockSettings, DEFAULT_SETTINGS, ExtendedApp } from './types';
-import { setupEditView, FoldWidget } from './editView';
+import { setupEditView, FoldWidget, toggleFoldEffect } from './editView';
 import { setupReadView, type ReadViewAPI } from './readView';
 
 export default class CollapsibleCodeBlockPlugin extends Plugin {
@@ -18,6 +18,25 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
         // Set up editor view with app instance
         const editorExtensions = setupEditView(this.settings, this.app);
         this.registerEditorExtension(editorExtensions);
+        
+        // Register command for keyboard shortcut
+        this.addCommand({
+            id: 'toggle-code-block-at-cursor',
+            name: 'Toggle code block containing cursor',
+            editorCheckCallback: (checking, editor, view) => {
+                if (checking) {
+                    // Check if we're in source mode
+                    const editorView = (editor as any).cm;
+                    return editorView != null;
+                }
+                this.toggleCodeBlockAtCursor(editor);
+                return true;
+            },
+            hotkeys: [{
+                modifiers: ['Mod', 'Shift'],
+                key: 'K'
+            }]
+        });
         this.registerEvent(
     this.app.workspace.on('file-open', () => {
         FoldWidget.clearInitializedBlocks();
@@ -48,6 +67,80 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
         document.body.setAttribute('data-transparent-button', this.settings.transparentButton.toString());
     }
 
+    toggleCodeBlockAtCursor(editor: Editor): void {
+        // Get the CodeMirror 6 EditorView instance
+        const editorView = (editor as any).cm;
+        if (!editorView) {
+            return;
+        }
+        
+        const state = editorView.state;
+        const cursorPos = state.selection.main.head;
+        const doc = state.doc;
+        
+        // Find the line containing the cursor
+        const cursorLine = doc.lineAt(cursorPos);
+        
+        // Find code block boundaries
+        let codeBlockStart = -1;
+        let codeBlockEnd = -1;
+        let startLine = null;
+        let endLine = null;
+        
+        // Check if cursor is already on a fence line
+        if (cursorLine.text.trim().startsWith('```')) {
+            startLine = cursorLine;
+            // Search forward for the closing fence
+            for (let i = cursorLine.number + 1; i <= doc.lines; i++) {
+                const line = doc.line(i);
+                if (line.text.trim().startsWith('```')) {
+                    endLine = line;
+                    break;
+                }
+            }
+            if (endLine) {
+                codeBlockStart = startLine.from;
+                codeBlockEnd = endLine.to;
+            }
+        } else {
+            // Search backwards for opening fence
+            for (let i = cursorLine.number - 1; i >= 1; i--) {
+                const line = doc.line(i);
+                if (line.text.trim().startsWith('```')) {
+                    startLine = line;
+                    // Now search forward from the next line for closing fence
+                    for (let j = i + 1; j <= doc.lines; j++) {
+                        const searchLine = doc.line(j);
+                        if (searchLine.text.trim().startsWith('```')) {
+                            endLine = searchLine;
+                            break;
+                        }
+                    }
+                    // Check if cursor is between the fences
+                    if (endLine && cursorPos >= startLine.from && cursorPos <= endLine.to) {
+                        codeBlockStart = startLine.from;
+                        codeBlockEnd = endLine.to;
+                        break;
+                    } else {
+                        // Reset and keep searching
+                        startLine = null;
+                        endLine = null;
+                    }
+                }
+            }
+        }
+        
+        // If we found a valid code block, trigger the toggle
+        if (codeBlockStart !== -1 && codeBlockEnd !== -1) {
+            // Dispatch the toggle effect - the effect handler will manage the toggle state
+            editorView.dispatch({
+                effects: toggleFoldEffect.of({
+                    from: codeBlockStart,
+                    to: codeBlockEnd
+                })
+            });
+        }
+    }
 
     private sanitizeIcon(icon: string): string {
         const cleaned = icon.trim();
@@ -192,6 +285,22 @@ class CollapsibleCodeBlockSettingTab extends PluginSettingTab {
                 
                 // Apply transparency immediately
                 this.plugin.updateButtonTransparency();
+            }));
+            
+    new Setting(containerEl)
+        .setName('Keyboard shortcut')
+        .setDesc('Toggle the code block containing the cursor. Default: Cmd/Ctrl+Shift+K. You can customize this in Settings → Hotkeys')
+        .addButton(button => button
+            .setButtonText('Open Hotkey Settings')
+            .onClick(() => {
+                // @ts-ignore
+                this.app.setting.openTabById('hotkeys');
+                // @ts-ignore  
+                const searchEl = this.app.setting.activeTab?.searchComponent?.inputEl;
+                if (searchEl) {
+                    searchEl.value = 'Toggle code block containing cursor';
+                    searchEl.dispatchEvent(new Event('input'));
+                }
             }));
     }
 }

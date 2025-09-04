@@ -118,11 +118,14 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
                 
                 folds.between(from, to, () => { hasFold = true });
                 
-                if (defaultState === false) {
+                // If defaultState is undefined, toggle based on current state
+                const shouldFold = defaultState !== undefined ? defaultState : !hasFold;
+                
+                if (!shouldFold) {
                     folds = folds.update({
                         filter: (fromPos, toPos) => fromPos !== from || toPos !== to
                     });
-                } else {
+                } else if (!hasFold) {
                     const capturedFrom = from;
                     const capturedTo = to;
                     
