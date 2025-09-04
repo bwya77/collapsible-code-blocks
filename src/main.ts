@@ -11,6 +11,8 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
     async onload() {
         await this.loadSettings();
         this.updateScrollSetting();
+        this.updateButtonAlignment();
+        this.updateButtonTransparency();
         // Initialize CSS variables
         document.documentElement.style.setProperty('--collapsed-lines', this.settings.collapsedLines.toString());
         // Set up editor view with app instance
@@ -38,13 +40,22 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
         document.body.setAttribute('data-ccb-horizontal-scroll', this.settings.enableHorizontalScroll.toString());
     }
 
+    updateButtonAlignment(): void {
+        document.body.setAttribute('data-button-alignment', this.settings.buttonAlignment);
+    }
+
+    updateButtonTransparency(): void {
+        document.body.setAttribute('data-transparent-button', this.settings.transparentButton.toString());
+    }
+
+
     private sanitizeIcon(icon: string): string {
         const cleaned = icon.trim();
         if (cleaned.length <= 2) {
             return cleaned;
         } else {
             // Check if it's a valid Obsidian icon name
-            if (this.app.customIcons && this.app.customIcons.exists(cleaned)) {
+            if ((this.app as any).customIcons && (this.app as any).customIcons.exists(cleaned)) {
                 return cleaned;
             }
             return DEFAULT_SETTINGS.collapseIcon;
@@ -70,6 +81,8 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
     onunload() {
         this.contentObserver?.disconnect();
         document.body.removeAttribute('data-ccb-horizontal-scroll');
+        document.body.removeAttribute('data-button-alignment');
+        document.body.removeAttribute('data-transparent-button');
     }
 }
 
@@ -152,5 +165,33 @@ class CollapsibleCodeBlockSettingTab extends PluginSettingTab {
                 document.documentElement.style.setProperty('--collapsed-lines', this.plugin.settings.collapsedLines.toString());
             });
     });
+
+    new Setting(containerEl)
+        .setName('Button alignment')
+        .setDesc('Align the collapse/expand button to the left or right side of the code block')
+        .addDropdown(dropdown => dropdown
+            .addOption('left', 'Left')
+            .addOption('right', 'Right')
+            .setValue(this.plugin.settings.buttonAlignment)
+            .onChange(async (value: 'left' | 'right') => {
+                this.plugin.settings.buttonAlignment = value;
+                await this.plugin.saveSettings();
+                
+                // Apply alignment immediately
+                this.plugin.updateButtonAlignment();
+            }));
+
+    new Setting(containerEl)
+        .setName('Transparent button')
+        .setDesc('Make the collapse/expand button transparent until hovered over')
+        .addToggle(toggle => toggle
+            .setValue(this.plugin.settings.transparentButton)
+            .onChange(async (value) => {
+                this.plugin.settings.transparentButton = value;
+                await this.plugin.saveSettings();
+                
+                // Apply transparency immediately
+                this.plugin.updateButtonTransparency();
+            }));
     }
 }

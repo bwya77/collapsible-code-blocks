@@ -22,7 +22,6 @@
 
 .code-block-toggle {
     position: absolute;
-    left: 4px;
     top: 4px;
     width: 24px;
     height: 24px;
@@ -36,6 +35,28 @@
     border-radius: 4px;
     user-select: none;
     font-size: 16px;
+}
+
+/* Left alignment (default) */
+.code-block-toggle {
+    left: 4px;
+}
+
+/* Right alignment */
+[data-button-alignment="right"] .code-block-toggle {
+    right: 4px;
+    left: auto;
+}
+
+/* When copy button is present, position to the left of it with more spacing and lower position */
+[data-button-alignment="right"] .markdown-preview-view pre.ccb-code-block:has(.copy-code-button) .code-block-toggle {
+    right: 38px;
+    top: 8px;
+}
+
+/* For right-aligned buttons without copy button, also adjust position slightly */
+[data-button-alignment="right"] .markdown-preview-view pre.ccb-code-block .code-block-toggle {
+    top: 8px;
 }
 
 .code-block-toggle:hover {
@@ -109,4 +130,71 @@ body[data-ccb-horizontal-scroll="true"] .markdown-preview-view pre.ccb-code-bloc
 .code-block-folded .code-block-toggle {
     top: 4px;
     left: 4px;
+}
+
+[data-button-alignment="right"] .code-block-folded .code-block-toggle {
+    right: 4px;
+    left: auto;
+    top: 8px;
+}
+
+/* Rotate expand icon when right-aligned and collapsed */
+[data-button-alignment="right"] .markdown-preview-view pre.ccb-code-block.collapsed .code-block-toggle,
+[data-button-alignment="right"] .code-block-folded .code-block-toggle {
+    transform: rotate(180deg);
+}
+
+/* Transparent button functionality - only in reading mode */
+[data-transparent-button="true"] .markdown-preview-view .code-block-toggle {
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* Reading mode - show only on direct button hover */
+[data-transparent-button="true"] .markdown-preview-view .code-block-toggle:hover,
+[data-transparent-button="true"] .markdown-preview-view .code-block-toggle:focus-visible {
+    opacity: 1;
+}
+
+/* Edit mode - always show buttons (no transparency in edit mode) */
+
+/* Dynamic positioning in edit mode based on code-block-flair presence */
+/* When code-block-flair (language button) is present in the same line, position collapse button to its left */
+.HyperMD-codeblock:has(.code-block-flair) .code-block-toggle {
+    right: 80px; /* Position close to language button */
+    left: auto;
+}
+
+/* Right-aligned buttons: when code-block-flair is present, move to left of language button */
+[data-button-alignment="right"] .HyperMD-codeblock:has(.code-block-flair) .code-block-toggle {
+    right: 80px; /* Position close to language button */
+    left: auto;
+}
+
+/* Left-aligned buttons: when code-block-flair is present, stay on left but visible */
+[data-button-alignment="left"] .HyperMD-codeblock:has(.code-block-flair) .code-block-toggle {
+    left: 4px;
+    right: auto;
+}
+
+/* When transparent button is enabled and language button is present, hide collapse button until hover */
+[data-transparent-button="true"] .HyperMD-codeblock:has(.code-block-flair) .code-block-toggle {
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* Show on hover when language button is present */
+[data-transparent-button="true"] .HyperMD-codeblock:has(.code-block-flair):hover .code-block-toggle {
+    opacity: 1;
+}
+
+/* When transparent button is enabled and editing (no language button), hide collapse button until hover */
+[data-transparent-button="true"] .HyperMD-codeblock:not(:has(.code-block-flair)) .code-block-toggle {
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* Show on hover when actively editing (no language button) */
+[data-transparent-button="true"] .HyperMD-codeblock:not(:has(.code-block-flair)):hover .code-block-toggle {
+    opacity: 1;
 }

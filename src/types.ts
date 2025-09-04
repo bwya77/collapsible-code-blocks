@@ -6,6 +6,8 @@ export interface CollapsibleCodeBlockSettings {
     expandIcon: string;
     enableHorizontalScroll: boolean;
     collapsedLines: number;
+    buttonAlignment: 'left' | 'right';
+    transparentButton: boolean;
 }
 
 export const DEFAULT_SETTINGS: CollapsibleCodeBlockSettings = {
@@ -13,7 +15,9 @@ export const DEFAULT_SETTINGS: CollapsibleCodeBlockSettings = {
     collapseIcon: '▼',
     expandIcon: '▶',
     enableHorizontalScroll: true,
-    collapsedLines: 0
+    collapsedLines: 0,
+    buttonAlignment: 'left',
+    transparentButton: false
 };
 
 export interface ExtendedPluginAPI {

@@ -1,5 +1,5 @@
 import { Extension } from '@codemirror/state';
-import { EditorView, Decoration, DecorationSet, WidgetType } from '@codemirror/view';
+import { EditorView, Decoration, DecorationSet, WidgetType, ViewUpdate, ViewPlugin } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { StateField, StateEffect, EditorState } from '@codemirror/state';
 import { CollapsibleCodeBlockSettings } from './types';
