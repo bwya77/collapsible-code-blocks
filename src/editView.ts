@@ -3,7 +3,7 @@ import { EditorView, Decoration, DecorationSet, WidgetType, ViewUpdate, ViewPlug
 import { syntaxTree } from '@codemirror/language';
 import { StateField, StateEffect, EditorState } from '@codemirror/state';
 import { CollapsibleCodeBlockSettings } from './types';
-import { App, MarkdownView } from 'obsidian';
+import { App, MarkdownView, MarkdownRenderer } from 'obsidian';
 
 interface CodeBlockPosition {
     startPos: number;
@@ -145,6 +145,11 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
                                 const fullContent = view.state.doc.sliceString(capturedFrom, capturedTo);
                                 const allLines = fullContent.split('\n');
                                 
+                                // Get the language from the first line
+                                const languageLine = allLines[0];
+                                const languageMatch = languageLine.match(/^```(\w+)?/);
+                                const language = languageMatch && languageMatch[1] ? languageMatch[1] : '';
+                                
                                 // Skip the first line (which contains ```language) and last line if it's closing backticks
                                 let codeLines = allLines.slice(1); // Skip first line with backticks
                                 
@@ -155,7 +160,29 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
                                 
                                 // Get the requested number of lines
                                 const lines = codeLines.slice(0, settings.collapsedLines).join('\n');
-                                contentDiv.textContent = lines;
+                                
+                                // Create a pre and code element to maintain code structure
+                                const preElement = document.createElement('pre');
+                                const codeElement = document.createElement('code');
+                                
+                                // Add language class for syntax highlighting
+                                if (language) {
+                                    codeElement.className = `language-${language}`;
+                                    preElement.className = `language-${language}`;
+                                }
+                                
+                                codeElement.textContent = lines;
+                                preElement.appendChild(codeElement);
+                                contentDiv.appendChild(preElement);
+                                
+                                // Apply Obsidian's syntax highlighting if available
+                                requestAnimationFrame(() => {
+                                    // @ts-ignore - Prism is available globally in Obsidian
+                                    if (typeof Prism !== 'undefined' && language) {
+                                        // @ts-ignore
+                                        Prism.highlightElement(codeElement);
+                                    }
+                                });
                                 
                                 const button = document.createElement('div');
                                 button.className = 'code-block-toggle';

@@ -124,7 +124,35 @@ body[data-ccb-horizontal-scroll="true"] .markdown-preview-view pre.ccb-code-bloc
 .code-block-folded .folded-content {
     max-height: calc(var(--collapsed-lines, 1) * 1.5em);
     overflow: hidden;
+}
+
+.code-block-folded .folded-content pre {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    border: none;
+    font-family: var(--font-monospace);
+    font-size: inherit;
+    line-height: 1.5em;
+}
+
+.code-block-folded .folded-content code {
     white-space: pre;
+    display: block;
+    color: inherit;
+    font-size: inherit;
+    font-family: var(--font-monospace);
+    line-height: inherit;
+}
+
+/* Ensure syntax highlighting tokens are visible in folded state */
+.code-block-folded .folded-content .token {
+    color: inherit;
+}
+
+/* Preserve Prism.js syntax highlighting colors */
+.code-block-folded .folded-content code[class*="language-"] {
+    color: var(--text-normal);
 }
 
 .code-block-folded .code-block-toggle {
