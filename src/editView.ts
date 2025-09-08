@@ -140,9 +140,21 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
                                 
                                 const contentDiv = document.createElement('div');
                                 contentDiv.className = 'folded-content';
-                                const lines = view.state.doc.sliceString(capturedFrom, capturedTo).split('\n')
-                                                .slice(0, settings.collapsedLines)
-                                                .join('\n');
+                                
+                                // Get the entire content first
+                                const fullContent = view.state.doc.sliceString(capturedFrom, capturedTo);
+                                const allLines = fullContent.split('\n');
+                                
+                                // Skip the first line (which contains ```language) and last line if it's closing backticks
+                                let codeLines = allLines.slice(1); // Skip first line with backticks
+                                
+                                // Remove the last line if it's closing backticks
+                                if (codeLines.length > 0 && codeLines[codeLines.length - 1].trim().startsWith('```')) {
+                                    codeLines = codeLines.slice(0, -1);
+                                }
+                                
+                                // Get the requested number of lines
+                                const lines = codeLines.slice(0, settings.collapsedLines).join('\n');
                                 contentDiv.textContent = lines;
                                 
                                 const button = document.createElement('div');
