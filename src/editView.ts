@@ -1,5 +1,5 @@
 import { Extension } from '@codemirror/state';
-import { EditorView, Decoration, DecorationSet, WidgetType, ViewUpdate, ViewPlugin } from '@codemirror/view';
+import { EditorView, Decoration, DecorationSet, WidgetType } from '@codemirror/view';
 import { syntaxTree } from '@codemirror/language';
 import { StateField, StateEffect, EditorState } from '@codemirror/state';
 import { CollapsibleCodeBlockSettings } from './types';
@@ -131,7 +131,8 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
                     
                     const deco = Decoration.replace({
                         block: true,
-                        inclusive: true,
+                        inclusiveStart: true,
+                        inclusiveEnd: false,
                         widget: new class extends WidgetType {
                             toDOM(view: EditorView) {
                                 const container = document.createElement('div');
@@ -303,9 +304,40 @@ export function setupEditView(settings: CollapsibleCodeBlockSettings, app: App):
         }
     });
 
+    // Transaction filter to auto-expand folds when edits would affect them
+    const autoExpandFilter = EditorState.transactionFilter.of(tr => {
+        // Skip if no document changes
+        if (!tr.docChanged) return tr;
+
+        const folds = tr.startState.field(foldField);
+        const unfoldEffects: StateEffect<{from: number, to: number, defaultState?: boolean}>[] = [];
+
+        // Check each change to see if it affects a folded region
+        tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+            folds.between(0, tr.startState.doc.length, (foldFrom, foldTo) => {
+                // If the change position is inside or at the boundary of a fold, unfold it
+                if (fromA <= foldTo && toA >= foldFrom) {
+                    unfoldEffects.push(toggleFoldEffect.of({
+                        from: foldFrom,
+                        to: foldTo,
+                        defaultState: false
+                    }));
+                }
+            });
+        });
+
+        // If we need to unfold, add the unfold effects to the transaction
+        if (unfoldEffects.length > 0) {
+            return [tr, { effects: unfoldEffects }];
+        }
+
+        return tr;
+    });
+
     return [
         codeBlockPositions,
         foldField,
-        currentDecorations
+        currentDecorations,
+        autoExpandFilter
     ];
 }
