@@ -1,5 +1,7 @@
 # Collapsible Code Blocks
 
+![Github All Releases](https://img.shields.io/github/downloads/bwya77/collapsible-code-blocks/total.svg)
+
 Make code blocks collapsible in preview mode with customizable collapse/expand behavior and horizontal scrolling options. This plugin enhances the readability of your notes by allowing you to collapse long code blocks when you don't need to see their full content.
 
 ![Demo](/images/demo.gif) 
