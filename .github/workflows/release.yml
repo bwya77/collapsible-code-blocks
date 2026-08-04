@@ -24,6 +24,7 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
+          draft: false
           files: |
             main.js
             manifest.json
