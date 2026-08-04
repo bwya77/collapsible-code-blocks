@@ -54,28 +54,10 @@ export function setupReadView(app: ExtendedApp, settings: CollapsibleCodeBlockSe
     }
 
     function updateCodeBlockVisibility(pre: HTMLElement, forceRefresh: boolean = false) {
-        const isCollapsed = pre.classList.contains('collapsed');
         const markdownView = app.workspace.getActiveViewOfType(MarkdownView);
         if (!markdownView?.previewMode?.containerEl) return;
 
         const previewElement = markdownView.previewMode.containerEl;
-        const rect = pre.getBoundingClientRect();
-        const scrollTop = previewElement.scrollTop;
-        const elementTop = rect.top + scrollTop;
-
-        let curr = pre.nextElementSibling;
-        while (curr && !(curr instanceof HTMLPreElement)) {
-            if (curr instanceof HTMLElement) {
-                if (isCollapsed) {
-                    curr.classList.add('element-hidden');
-                    curr.classList.remove('element-visible', 'element-spacing');
-                } else {
-                    curr.classList.remove('element-hidden');
-                    curr.classList.add('element-visible');
-                }
-            }
-            curr = curr.nextElementSibling;
-        }
 
         void pre.offsetHeight;
 

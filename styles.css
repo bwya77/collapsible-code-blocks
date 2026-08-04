@@ -81,23 +81,6 @@ body[data-ccb-horizontal-scroll="true"] .markdown-preview-view pre.ccb-code-bloc
     width: 0;
 }
 
-/* New styles for dynamic states */
-.hidden {
-    display: none !important;
-}
-
-.element-hidden {
-    display: none !important;
-}
-
-.element-visible {
-    display: block;
-}
-
-.element-spacing {
-    margin-top: var(--element-spacing);
-}
-
 /* Custom properties for dynamic values */
 :root {
     --element-spacing: 0px;
