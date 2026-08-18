@@ -80,7 +80,7 @@ export class FoldWidget extends WidgetType {
         
         this.initializeCodeBlock(view);
         
-        button.innerHTML = isFolded ? this.settings.expandIcon : this.settings.collapseIcon;
+        button.innerHTML = isFolded ? this.settings.collapseIcon : this.settings.expandIcon;
         button.setAttribute('aria-label', isFolded ? 'Expand code block' : 'Collapse code block');
         
         button.onclick = (e) => {
@@ -187,7 +187,7 @@ const createFoldField = (settings: CollapsibleCodeBlockSettings) => StateField.d
                                 
                                 const button = document.createElement('div');
                                 button.className = 'code-block-toggle';
-                                button.textContent = settings.expandIcon;
+                                button.textContent = settings.collapseIcon;
                                 button.onclick = (e) => {
                                     e.preventDefault();
                                     e.stopPropagation();

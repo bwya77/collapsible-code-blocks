@@ -149,9 +149,8 @@ body[data-ccb-horizontal-scroll="true"] .markdown-preview-view pre.ccb-code-bloc
     top: 8px;
 }
 
-/* Rotate expand icon when right-aligned and collapsed */
-[data-button-alignment="right"] .markdown-preview-view pre.ccb-code-block.collapsed .code-block-toggle,
-[data-button-alignment="right"] .code-block-folded .code-block-toggle {
+/* Point the built-in expand icon inward when it is right-aligned. */
+[data-button-alignment="right"] .code-block-toggle.ccb-rotate-on-right {
     transform: rotate(180deg);
 }
 
