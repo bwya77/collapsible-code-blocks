@@ -155,19 +155,25 @@ export default class CollapsibleCodeBlockPlugin extends Plugin {
         }
     }
 
+    private sanitizeButtonAlignment(alignment: unknown): 'left' | 'right' {
+        return alignment === 'right' ? 'right' : DEFAULT_SETTINGS.buttonAlignment;
+    }
+
     async loadSettings() {
         const loadedData = await this.loadData();
         this.settings = {
             ...DEFAULT_SETTINGS,
             ...loadedData,
             collapseIcon: this.sanitizeIcon(loadedData?.collapseIcon ?? DEFAULT_SETTINGS.collapseIcon),
-            expandIcon: this.sanitizeIcon(loadedData?.expandIcon ?? DEFAULT_SETTINGS.expandIcon)
+            expandIcon: this.sanitizeIcon(loadedData?.expandIcon ?? DEFAULT_SETTINGS.expandIcon),
+            buttonAlignment: this.sanitizeButtonAlignment(loadedData?.buttonAlignment)
         };
     }
 
     async saveSettings() {
         this.settings.collapseIcon = this.sanitizeIcon(this.settings.collapseIcon);
         this.settings.expandIcon = this.sanitizeIcon(this.settings.expandIcon);
+        this.settings.buttonAlignment = this.sanitizeButtonAlignment(this.settings.buttonAlignment);
         await this.saveData(this.settings);
     }
 
@@ -205,7 +211,7 @@ class CollapsibleCodeBlockSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
         .setName('Collapse icon')
-        .setDesc('Icon to show when code block is expanded (single character or emoji only)')
+        .setDesc('Icon to show when code block is collapsed (single character or emoji only)')
         .addText(text => text
             .setValue(this.plugin.settings.collapseIcon)
             .onChange(async (value) => {
@@ -218,7 +224,7 @@ class CollapsibleCodeBlockSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
         .setName('Expand icon')
-        .setDesc('Icon to show when code block is collapsed (single character or emoji only)')
+        .setDesc('Icon to show when code block is expanded (single character or emoji only)')
         .addText(text => text
             .setValue(this.plugin.settings.expandIcon)
             .onChange(async (value) => {
@@ -227,6 +233,19 @@ class CollapsibleCodeBlockSettingTab extends PluginSettingTab {
                     this.plugin.settings.expandIcon = sanitized || DEFAULT_SETTINGS.expandIcon;
                     await this.plugin.saveSettings();
                 }
+            }));
+
+    new Setting(containerEl)
+        .setName('Restore default icons')
+        .setDesc('Reset both collapse and expand icons to their defaults')
+        .addButton(button => button
+            .setIcon('rotate-ccw')
+            .setTooltip('Restore default icons')
+            .onClick(async () => {
+                this.plugin.settings.collapseIcon = DEFAULT_SETTINGS.collapseIcon;
+                this.plugin.settings.expandIcon = DEFAULT_SETTINGS.expandIcon;
+                await this.plugin.saveSettings();
+                this.display();
             }));
 
     new Setting(containerEl)
@@ -262,17 +281,36 @@ class CollapsibleCodeBlockSettingTab extends PluginSettingTab {
     new Setting(containerEl)
         .setName('Button alignment')
         .setDesc('Align the collapse/expand button to the left or right side of the code block')
-        .addDropdown(dropdown => dropdown
-            .addOption('left', 'Left')
-            .addOption('right', 'Right')
-            .setValue(this.plugin.settings.buttonAlignment)
-            .onChange(async (value: 'left' | 'right') => {
-                this.plugin.settings.buttonAlignment = value;
+        .addDropdown(dropdown => {
+            const alignment = this.plugin.settings.buttonAlignment === 'right' ? 'right' : 'left';
+            const selectAlignment = (value: 'left' | 'right') => {
+                dropdown.setValue(value);
+                dropdown.selectEl.value = value;
+                dropdown.selectEl.selectedIndex = value === 'right' ? 1 : 0;
+            };
+
+            dropdown.addOptions({
+                left: 'Left',
+                right: 'Right'
+            });
+            selectAlignment(alignment);
+
+            dropdown.onChange(async (value) => {
+                const selectedAlignment = value === 'right' ? 'right' : 'left';
+                selectAlignment(selectedAlignment);
+                this.plugin.settings.buttonAlignment = selectedAlignment;
                 await this.plugin.saveSettings();
                 
                 // Apply alignment immediately
                 this.plugin.updateButtonAlignment();
-            }));
+            });
+
+            requestAnimationFrame(() => {
+                if (dropdown.selectEl.isConnected) {
+                    selectAlignment(this.plugin.settings.buttonAlignment);
+                }
+            });
+        });
 
     new Setting(containerEl)
         .setName('Transparent button')

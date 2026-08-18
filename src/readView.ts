@@ -1,5 +1,5 @@
 import { MarkdownView } from 'obsidian';
-import { CollapsibleCodeBlockSettings, ExtendedApp } from './types';
+import { CollapsibleCodeBlockSettings, DEFAULT_SETTINGS, ExtendedApp } from './types';
 
 export interface ReadViewAPI {
     processNewCodeBlocks: (element: HTMLElement) => void;
@@ -7,6 +7,14 @@ export interface ReadViewAPI {
 }
 
 export function setupReadView(app: ExtendedApp, settings: CollapsibleCodeBlockSettings): ReadViewAPI {
+   function setToggleIcon(button: HTMLElement, isCollapsed: boolean): void {
+       button.textContent = isCollapsed ? settings.collapseIcon : settings.expandIcon;
+       button.classList.toggle(
+           'ccb-rotate-on-right',
+           !isCollapsed && settings.expandIcon === DEFAULT_SETTINGS.expandIcon
+       );
+   }
+
    function getFrontmatterCodeBlockState(): boolean | null {
         const activeView = app.workspace.getActiveViewOfType(MarkdownView);
         if (!activeView?.file) return null;
@@ -23,7 +31,7 @@ export function setupReadView(app: ExtendedApp, settings: CollapsibleCodeBlockSe
     function createToggleButton(): HTMLElement {
         const button = document.createElement('div');
         button.className = 'code-block-toggle';
-        button.textContent = settings.collapseIcon;
+        setToggleIcon(button, false);
         button.setAttribute('role', 'button');
         button.setAttribute('tabindex', '0');
         button.setAttribute('aria-label', 'Toggle code block visibility');
@@ -37,7 +45,7 @@ export function setupReadView(app: ExtendedApp, settings: CollapsibleCodeBlockSe
             updateCodeBlockVisibility(pre, true);
             
             const isCollapsed = pre.classList.contains('collapsed');
-            button.textContent = isCollapsed ? settings.expandIcon : settings.collapseIcon;
+            setToggleIcon(button, isCollapsed);
             button.setAttribute('aria-expanded', (!isCollapsed).toString());
             app.workspace.requestSaveLayout();
         };
@@ -90,7 +98,7 @@ export function setupReadView(app: ExtendedApp, settings: CollapsibleCodeBlockSe
 
         if (shouldCollapse) {
             pre.classList.add('collapsed');
-            toggleButton.textContent = settings.expandIcon;
+            setToggleIcon(toggleButton, true);
             updateCodeBlockVisibility(pre, true);
         }
     }
